@@ -1,6 +1,6 @@
 import random
 
-from transformers import (ConstantLRSchedule, WarmupLinearSchedule, WarmupConstantSchedule)
+from transformers import (get_constant_schedule, get_linear_schedule_with_warmup, get_constant_schedule_with_warmup)
 
 from modeling.modeling_grn import *
 from utils.optimization_utils import OPTIMIZER_CLASSES
@@ -180,12 +180,12 @@ def train(args):
     optimizer = OPTIMIZER_CLASSES[args.optim](grouped_parameters)
 
     if args.lr_schedule == 'fixed':
-        scheduler = ConstantLRSchedule(optimizer)
+        scheduler = get_constant_schedule(optimizer)
     elif args.lr_schedule == 'warmup_constant':
-        scheduler = WarmupConstantSchedule(optimizer, warmup_steps=args.warmup_steps)
+        scheduler = get_constant_schedule_with_warmup(optimizer, warmup_steps=args.warmup_steps)
     elif args.lr_schedule == 'warmup_linear':
         max_steps = int(args.n_epochs * (dataset.train_size() / args.batch_size))
-        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=max_steps)
+        scheduler = get_linear_schedule_with_warmup(optimizer, warmup_steps=args.warmup_steps, t_total=max_steps)
 
     print('parameters:')
     for name, param in model.decoder.named_parameters():

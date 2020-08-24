@@ -71,7 +71,7 @@ conda create -n krqa python=3.6 numpy matplotlib ipython
 source activate krqa
 conda install pytorch=1.1.0 torchvision cudatoolkit=10.0 -c pytorch
 pip install dgl-cu100==0.3.1
-pip install transformers==2.0.0 tqdm networkx==2.3 nltk spacy==2.1.6
+pip install transformers==3.0.0 tqdm networkx==2.3 nltk spacy==2.1.6
 python -m spacy download en
 ```
 

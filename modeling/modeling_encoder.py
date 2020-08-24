@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 from transformers import (OPENAI_GPT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_CONFIG_ARCHIVE_MAP,
                           XLNET_PRETRAINED_CONFIG_ARCHIVE_MAP, ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP)
-from transformers import AutoModel
+from transformers import AutoConfig, AutoModel
 from utils.layers import *
 from utils.data_utils import get_gpt_token_num
 
@@ -86,7 +86,8 @@ class TextEncoder(nn.Module):
             self.module = LSTMTextEncoder(**kwargs, output_hidden_states=True)
             self.sent_dim = self.module.output_size
         else:
-            self.module = AutoModel.from_pretrained(model_name, output_hidden_states=True)
+            config = AutoConfig.from_pretrained(model_name, output_hidden_states=True)
+            self.module = AutoModel.from_pretrained(model_name, config=config)
             if from_checkpoint is not None:
                 self.module = self.module.from_pretrained(from_checkpoint, output_hidden_states=True)
             if self.model_type in ('gpt',):
