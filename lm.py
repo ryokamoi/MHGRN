@@ -1,4 +1,5 @@
 import random
+import logging
 
 import numpy as np
 import torch.nn.functional as F
@@ -9,6 +10,20 @@ from modeling.modeling_lm import *
 from utils.optimization_utils import OPTIMIZER_CLASSES
 from utils.parser_utils import *
 from utils.utils import *
+
+
+def setup_logger(name, log_file, level=logging.INFO):
+    """To setup as many loggers as you want"""
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+
+    handler = logging.FileHandler(log_file)        
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
+    return logger
 
 
 def evaluate_accuracy(eval_set, model):
@@ -65,6 +80,9 @@ def train(args):
     model_path = os.path.join(args.save_dir, 'model.pt')
     check_path(model_path)
 
+    logger = setup_logger(__name__, args.save_dir + "log.txt")
+    logger.info(args)
+
     ###################################################################################################
     #   Load data                                                                                     #
     ###################################################################################################
@@ -88,9 +106,9 @@ def train(args):
     try:
         model.to(device)
     except RuntimeError as e:
-        print(e)
-        print('best dev acc: 0.0 (at epoch 0)')
-        print('final test acc: 0.0')
+        logger.info(e)
+        logger.info('best dev acc: 0.0 (at epoch 0)')
+        logger.info('final test acc: 0.0')
         print()
         return
 
@@ -120,7 +138,7 @@ def train(args):
 
     print()
     print('***** running training *****')
-    print(f'| batch_size: {args.batch_size} | num_epochs: {args.n_epochs} | num_train: {dataset.train_size()} |'
+    logger.info(f'| batch_size: {args.batch_size} | num_epochs: {args.n_epochs} | num_train: {dataset.train_size()} |'
           f' num_dev: {dataset.dev_size()} | num_test: {dataset.test_size()}')
 
     global_step = 0
@@ -166,7 +184,7 @@ def train(args):
                 best_dev_acc = dev_acc
                 best_dev_epoch = epoch
                 torch.save([model, args], model_path)
-            print('| epoch {:5} | dev_acc {:7.4f} | test_acc {:7.4f} |'.format(epoch, dev_acc, test_acc))
+            logger.info('| epoch {:5} | dev_acc {:7.4f} | test_acc {:7.4f} |'.format(epoch, dev_acc, test_acc))
             if epoch - best_dev_epoch >= args.max_epochs_before_stop:
                 break
     except (KeyboardInterrupt, RuntimeError) as e:
@@ -174,9 +192,9 @@ def train(args):
 
     print('***** training ends *****')
     print()
-    print('training ends in {} steps'.format(global_step))
-    print('best dev acc: {:.4f} (at epoch {})'.format(best_dev_acc, best_dev_epoch))
-    print('final test acc: {:.4f}'.format(final_test_acc))
+    logger.info('training ends in {} steps'.format(global_step))
+    logger.info('best dev acc: {:.4f} (at epoch {})'.format(best_dev_acc, best_dev_epoch))
+    logger.info('final test acc: {:.4f}'.format(final_test_acc))
     print()
 
 
