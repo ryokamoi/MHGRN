@@ -114,7 +114,7 @@ def ground_qa_pair(qa_pair):
         nlp.add_pipe(nlp.create_pipe('sentencizer'))
         matcher = load_matcher(nlp, PATTERN_PATH)
 
-    s, a = qa_pair
+    id, q, s, al, a = qa_pair
     all_concepts = ground_mentioned_concepts(nlp, matcher, s, a)
     answer_concepts = ground_mentioned_concepts(nlp, matcher, a)
     question_concepts = all_concepts - answer_concepts
@@ -127,7 +127,8 @@ def ground_qa_pair(qa_pair):
     # question_concepts = question_concepts -  answer_concepts
     question_concepts = sorted(list(question_concepts))
     answer_concepts = sorted(list(answer_concepts))
-    return {"sent": s, "ans": a, "qc": question_concepts, "ac": answer_concepts}
+    return {"id": id, "stem": q, "sent": s, "label": al, "ans": a,
+            "qc": question_concepts, "ac": answer_concepts}
 
 
 def ground_mentioned_concepts(nlp, matcher, s, ans=None):
@@ -233,10 +234,10 @@ def hard_ground(nlp, sent, cpnet_vocab):
     return res
 
 
-def match_mentioned_concepts(sents, answers, num_processes):
+def match_mentioned_concepts(ids, questions, sents, answer_labels, answers, num_processes):
     res = []
     with Pool(num_processes) as p:
-        res = list(tqdm(p.imap(ground_qa_pair, zip(sents, answers)), total=len(sents)))
+        res = list(tqdm(p.imap(ground_qa_pair, zip(ids, questions, sents, answer_labels, answers)), total=len(ids)))
     return res
 
 
@@ -301,7 +302,10 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
         PATTERN_PATH = pattern_path
         CPNET_VOCAB = load_cpnet_vocab(cpnet_vocab_path)
 
+    ids = []
+    questions = []
     sents = []
+    answer_labels = []
     answers = []
     with open(statement_path, 'r') as fin:
         lines = [line for line in fin]
@@ -313,6 +317,9 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
         if line == "":
             continue
         j = json.loads(line)
+        for _ in range(len(j["question"]["choices"])):
+            ids.append(j["id"])
+            questions.append(j["question"]["stem"])
         for statement in j["statements"]:
             sents.append(statement["statement"])
         for answer in j["question"]["choices"]:
@@ -322,9 +329,10 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
                 assert all([i != "_" for i in ans])
             except Exception:
                 print(ans)
+            answer_labels.append(answer["label"])
             answers.append(ans)
 
-    res = match_mentioned_concepts(sents, answers, num_processes)
+    res = match_mentioned_concepts(ids, questions, sents, answer_labels, answers, num_processes)
     res = prune(res, cpnet_vocab_path)
 
     # check_path(output_path)

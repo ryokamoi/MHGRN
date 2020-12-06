@@ -183,14 +183,19 @@ def find_paths_qa_pair(qa_pair):
 
 def score_triple(h, t, r, flag):
     res = -10
+    res_rel = -1
     for i in range(len(r)):
         if flag[i]:
             temp_h, temp_t = t, h
         else:
             temp_h, temp_t = h, t
         # result  = (cosine_sim + 1) / 2
-        res = max(res, (1 + 1 - spatial.distance.cosine(r[i], temp_t - temp_h)) / 2)
-    return res
+        dist = (1 + 1 - spatial.distance.cosine(r[i], temp_t - temp_h)) / 2
+        if dist > res:
+            res = dist
+            res_rel = i
+    assert res_rel != -1
+    return res, res_rel
 
 
 def score_triples(concept_id, relation_id, debug=False):
@@ -222,11 +227,13 @@ def score_triples(concept_id, relation_id, debug=False):
         flag.append(l_flag)
 
     res = 1
+    res_rels = []
     for i in range(concept.shape[0] - 1):
         h = concept[i]
         t = concept[i + 1]
-        score = score_triple(h, t, relation[i], flag[i])
+        score, res_rel = score_triple(h, t, relation[i], flag[i])
         res *= score
+        res_rels.append(relation_id[i][res_rel])
 
     if debug:
         print("Num of concepts:")
@@ -245,23 +252,28 @@ def score_triples(concept_id, relation_id, debug=False):
         print(to_print)
         print("Likelihood: " + str(res) + "\n")
 
-    return res
+    return res, res_rels
 
 
 def score_qa_pairs(qa_pairs):
     statement_scores = []
+    statement_rels = []
     for qas in qa_pairs:
         statement_paths = qas["pf_res"]
         if statement_paths is not None:
             path_scores = []
+            path_rels = []
             for path in statement_paths:
                 assert len(path["path"]) > 1
-                score = score_triples(concept_id=path["path"], relation_id=path["rel"])
+                score, rels = score_triples(concept_id=path["path"], relation_id=path["rel"])
                 path_scores.append(score)
+                path_rels.append(rels)
             statement_scores.append(path_scores)
+            statement_rels.append(path_rels)
         else:
             statement_scores.append(None)
-    return statement_scores
+            statement_rels.append(None)
+    return statement_scores, statement_rels
 
 
 def find_relational_paths_from_paths_per_inst(path_dic):
@@ -341,7 +353,7 @@ def generate_path_and_graph_from_adj(adj_path, cpnet_graph_path, output_path, gr
 
 
 
-def score_paths(raw_paths_path, concept_emb_path, rel_emb_path, cpnet_vocab_path, output_path, num_processes=1, method='triple_cls'):
+def score_paths(raw_paths_path, concept_emb_path, rel_emb_path, cpnet_vocab_path, output_path, output_rels_path, num_processes=1, method='triple_cls'):
     print(f'scoring paths for {raw_paths_path}...')
     global concept2id, id2concept, relation2id, id2relation
     if any(x is None for x in [concept2id, id2concept, relation2id, id2relation]):
@@ -360,11 +372,14 @@ def score_paths(raw_paths_path, concept_emb_path, rel_emb_path, cpnet_vocab_path
     with open(raw_paths_path, 'r') as fin:
         data = [json.loads(line) for line in fin]
 
-    with Pool(num_processes) as p, open(output_path, 'w') as fout:
-        for statement_scores in tqdm(p.imap(score_qa_pairs, data), total=len(data)):
+    with Pool(num_processes) as p, open(output_path, 'w') as fout, \
+            open(output_rels_path, 'w') as fout_rels:
+        for statement_scores, statement_rels in tqdm(p.imap(score_qa_pairs, data), total=len(data)):
             fout.write(json.dumps(statement_scores) + '\n')
+            fout_rels.write(json.dumps(statement_rels) + '\n')
 
     print(f'path scores saved to {output_path}')
+    print(f'path relations saved to {output_rels_path}')
     print()
 
 
